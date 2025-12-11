@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import altair as alt  # Library tambahan untuk grafik presisi
+import altair as alt
 from fpdf import FPDF
 from datetime import datetime
 
 # --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="SPK ARAS - Final Fixed", page_icon="📱", layout="wide")
+st.set_page_config(page_title="SPK ARAS - Locked Weights", page_icon="📱", layout="wide")
 
 # --- CSS TAMPILAN ---
 st.markdown("""
@@ -20,6 +20,10 @@ st.markdown("""
         font-weight: bold;
         font-size: 18px;
         color: #1b5e20;
+    }
+    /* Style untuk error box */
+    .stAlert {
+        font-weight: bold;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -69,7 +73,6 @@ def create_dynamic_pdf(data_input, bobot_dict, df_s1, df_s2, df_s3, df_rank, bes
     pdf.multi_cell(0, 5, f"Bobot: {w_str}")
     pdf.ln(5)
 
-    # Label Generators untuk PDF
     alts_list = data_input['Alternative'].tolist()
     labels_A_names = ['A0 (Optimum)'] + [f"A{i+1} ({n})" for i, n in enumerate(alts_list)]
     labels_A_short = ['A0'] + [f"A{i+1}" for i in range(len(alts_list))]
@@ -112,15 +115,31 @@ def create_dynamic_pdf(data_input, bobot_dict, df_s1, df_s2, df_s3, df_rank, bes
 
 # --- SIDEBAR: KONFIGURASI BOBOT ---
 st.sidebar.header("⚙️ Edit Bobot")
-w_Price = st.sidebar.slider("Price (Cost)", 0.0, 0.5, 0.30, 0.05)
-w_RAM = st.sidebar.slider("RAM (Benefit)", 0.0, 0.5, 0.15, 0.05)
-w_ROM = st.sidebar.slider("ROM (Benefit)", 0.0, 0.5, 0.15, 0.05)
-w_Batt = st.sidebar.slider("Battery (Benefit)", 0.0, 0.5, 0.15, 0.05)
-w_Cam = st.sidebar.slider("Camera (Benefit)", 0.0, 0.5, 0.25, 0.05)
+
+# Slider Bobot
+w_Price = st.sidebar.slider("Price (Cost)", 0.0, 1.0, 0.30, 0.05)
+w_RAM = st.sidebar.slider("RAM (Benefit)", 0.0, 1.0, 0.15, 0.05)
+w_ROM = st.sidebar.slider("ROM (Benefit)", 0.0, 1.0, 0.15, 0.05)
+w_Batt = st.sidebar.slider("Battery (Benefit)", 0.0, 1.0, 0.15, 0.05)
+w_Cam = st.sidebar.slider("Camera (Benefit)", 0.0, 1.0, 0.25, 0.05)
 
 bobot_list = [w_Price, w_RAM, w_ROM, w_Batt, w_Cam]
 bobot_dict = {"Price": w_Price, "RAM": w_RAM, "ROM": w_ROM, "Battery": w_Batt, "Camera": w_Cam}
-st.sidebar.markdown(f"**Total Bobot: {sum(bobot_list):.2f}**")
+total_bobot = round(sum(bobot_list), 2) # Rounding untuk menghindari float error 0.99999
+
+st.sidebar.markdown("---")
+st.sidebar.write(f"**Total Bobot Saat Ini:** {total_bobot}")
+
+# --- LOGIKA VALIDASI BOBOT ---
+is_overload = False
+if total_bobot > 1.0:
+    st.sidebar.error(f"❌ ERROR: Total bobot {total_bobot} melebihi 1.0!")
+    st.sidebar.warning("Harap kurangi nilai salah satu bobot.")
+    is_overload = True
+elif total_bobot < 1.0:
+    st.sidebar.warning(f"⚠️ PERINGATAN: Total bobot {total_bobot} kurang dari 1.0. (Program tetap jalan, tapi disarankan pas 1.0)")
+else:
+    st.sidebar.success("✅ OKE: Total bobot pas 1.0")
 
 # --- DATA SMARTPHONE ---
 st.title("📱 SPK Smartphone - Metode ARAS")
@@ -135,127 +154,119 @@ default_data = {
 df_input = pd.DataFrame(default_data)
 edited_df = st.data_editor(df_input, num_rows="dynamic", use_container_width=True)
 
-# --- ENGINE PERHITUNGAN ---
-if st.button("🚀 Hitung & Tampilkan", type="primary"):
-    
-    alts = edited_df['Alternative'].values
-    matrix = edited_df.drop('Alternative', axis=1)
-    cols = matrix.columns
-    types = ['cost', 'benefit', 'benefit', 'benefit', 'benefit']
-    
-    # 1. Menentukan X0
-    x0 = []
-    for i, col in enumerate(cols):
-        if types[i] == 'benefit':
-            x0.append(matrix[col].max())
-        else:
-            x0.append(matrix[col].min())
-            
-    df_calc = matrix.copy()
-    df_x0 = pd.DataFrame([x0], columns=cols)
-    df_step1 = pd.concat([df_x0, df_calc], ignore_index=True)
-
-    # 2. Normalisasi
-    df_step2 = df_step1.copy().astype(float)
-    for i, col in enumerate(cols):
-        if types[i] == 'benefit':
-            df_step2[col] = df_step1[col] / df_step1[col].sum()
-        else:
-            reciprocal = 1 / df_step1[col]
-            df_step2[col] = reciprocal / reciprocal.sum()
-
-    # 3. Pembobotan & Si
-    df_step3 = df_step2.copy()
-    for i, col in enumerate(cols):
-        df_step3[col] = df_step2[col] * bobot_list[i]
-    
-    Si = df_step3.sum(axis=1)
-    df_step3['Total (Si)'] = Si
-
-    # 4. Utilitas (Ki)
-    S0 = Si[0]
-    Ki = Si / S0
-
-    # 5. Preparation Hasil
-    kode_awal = ['A0'] + [f"A{i+1}" for i in range(len(alts))]
-    
-    # DataFrame lengkap tanpa sort (urutan input)
-    res = pd.DataFrame({
-        'Kode': kode_awal,
-        'Alternatif': ['OPTIMAL (A0)'] + list(alts),
-        'Nilai Si (Total)': Si,
-        'Nilai Ki (Utilitas)': Ki
-    })
-    
-    # DATA A: Untuk Tabel Ranking (Diurutkan berdasarkan skor tertinggi)
-    rank_df = res.iloc[1:].copy().sort_values(by='Nilai Ki (Utilitas)', ascending=False).reset_index(drop=True)
-    best = rank_df.iloc[0]
-
-    # DATA B: Untuk Grafik (TIDAK DI-SORT, Murni urutan input)
-    chart_df = res.iloc[1:].copy() 
-    
-    # --- DISPLAY OUTPUT ---
-
-    labels_step1 = ['A0 (Optimum)']
-    for i, name in enumerate(alts):
-        labels_step1.append(f"A{i+1} ({name})") 
-
-    labels_step2 = ['A0'] + [f"A{i+1}" for i in range(len(alts))] 
-    labels_step3 = ['S0'] + [f"S{i+1}" for i in range(len(alts))] 
-
-    # DISPLAY LANGKAH 1
-    st.markdown('<div class="step-header">LANGKAH 1: Matriks Keputusan (A)</div>', unsafe_allow_html=True)
-    df_disp_1 = df_step1.copy()
-    df_disp_1.index = labels_step1 
-    st.dataframe(df_disp_1, use_container_width=True)
-
-    # DISPLAY LANGKAH 2
-    st.markdown('<div class="step-header">LANGKAH 2: Normalisasi (R)</div>', unsafe_allow_html=True)
-    df_disp_2 = df_step2.copy()
-    df_disp_2.index = labels_step2
-    st.dataframe(df_disp_2.style.format("{:.4f}"), use_container_width=True)
-
-    # DISPLAY LANGKAH 3
-    st.markdown('<div class="step-header">LANGKAH 3: Matriks Terbobot (S)</div>', unsafe_allow_html=True)
-    df_disp_3 = df_step3.copy()
-    df_disp_3.index = labels_step3 
-    st.dataframe(df_disp_3.style.format("{:.4f}"), use_container_width=True)
-
-    # DISPLAY HASIL AKHIR (DENGAN GRAFIK YANG BENAR)
-    st.markdown('<div class="step-header">HASIL PERANGKINGAN</div>', unsafe_allow_html=True)
-    st.info(f"Nilai Optimalitas (S0) = **{S0:.4f}**")
-    
-    col_res, col_chart = st.columns([1.2, 1])
-    
-    with col_res:
-        st.write("Tabel Peringkat (Urut Skor Tertinggi):")
-        st.dataframe(
-            rank_df[['Kode', 'Alternatif', 'Nilai Si (Total)', 'Nilai Ki (Utilitas)']]
-            .style.format({'Nilai Si (Total)': '{:.4f}', 'Nilai Ki (Utilitas)': '{:.4f}'}),
-            use_container_width=True
-        )
-    
-    with col_chart:
-        st.write("Grafik Utilitas (Sesuai Urutan Input):")
-        # FIX: Menggunakan ALTAIR untuk memaksa urutan agar tidak alphabet
-        c = alt.Chart(chart_df).mark_bar().encode(
-            x=alt.X('Alternatif', sort=None), # sort=None menjaga urutan A1, A2, A3, A4
-            y='Nilai Ki (Utilitas)',
-            tooltip=['Alternatif', 'Nilai Ki (Utilitas)']
-        ).interactive()
+# --- TOMBOL UTAMA DENGAN VALIDASI ---
+if is_overload:
+    st.error("⛔ SISTEM TERKUNCI: Total bobot melebihi 1.0. Silakan perbaiki bobot di sidebar untuk melanjutkan.")
+    # Tombol dibuat disabled (mati) jika overload
+    st.button("🚀 Hitung & Tampilkan", type="primary", disabled=True)
+else:
+    # Program Normal jika bobot <= 1.0
+    if st.button("🚀 Hitung & Tampilkan", type="primary"):
         
-        st.altair_chart(c, use_container_width=True)
-    
-    st.success(f"🏆 Juara 1: **{best['Alternatif']}** (Kode Asal: **{best['Kode']}**)")
+        # --- CORE CALCULATION ---
+        alts = edited_df['Alternative'].values
+        matrix = edited_df.drop('Alternative', axis=1)
+        cols = matrix.columns
+        types = ['cost', 'benefit', 'benefit', 'benefit', 'benefit']
+        
+        # 1. X0
+        x0 = []
+        for i, col in enumerate(cols):
+            if types[i] == 'benefit':
+                x0.append(matrix[col].max())
+            else:
+                x0.append(matrix[col].min())
+                
+        df_calc = matrix.copy()
+        df_x0 = pd.DataFrame([x0], columns=cols)
+        df_step1 = pd.concat([df_x0, df_calc], ignore_index=True)
 
-    # DOWNLOAD PDF
-    st.markdown("---")
-    pdf_bytes = create_dynamic_pdf(edited_df, bobot_dict, df_step1, df_step2, df_step3, rank_df, 
-                                   {"nama": best['Alternatif'], "kode": best['Kode']})
-    
-    st.download_button(
-        label="📄 Download Laporan Lengkap (PDF)",
-        data=pdf_bytes,
-        file_name="Laporan_ARAS_Final.pdf",
-        mime="application/pdf"
-    )
+        # 2. Normalisasi
+        df_step2 = df_step1.copy().astype(float)
+        for i, col in enumerate(cols):
+            if types[i] == 'benefit':
+                df_step2[col] = df_step1[col] / df_step1[col].sum()
+            else:
+                reciprocal = 1 / df_step1[col]
+                df_step2[col] = reciprocal / reciprocal.sum()
+
+        # 3. Pembobotan
+        df_step3 = df_step2.copy()
+        for i, col in enumerate(cols):
+            df_step3[col] = df_step2[col] * bobot_list[i]
+        
+        Si = df_step3.sum(axis=1)
+        df_step3['Total (Si)'] = Si
+
+        # 4. Utilitas
+        S0 = Si[0]
+        Ki = Si / S0
+
+        # 5. Hasil
+        kode_awal = ['A0'] + [f"A{i+1}" for i in range(len(alts))]
+        res = pd.DataFrame({
+            'Kode': kode_awal,
+            'Alternatif': ['OPTIMAL (A0)'] + list(alts),
+            'Nilai Si (Total)': Si,
+            'Nilai Ki (Utilitas)': Ki
+        })
+        
+        # Split Data untuk Ranking & Grafik
+        rank_df = res.iloc[1:].copy().sort_values(by='Nilai Ki (Utilitas)', ascending=False).reset_index(drop=True)
+        best = rank_df.iloc[0]
+        chart_df = res.iloc[1:].copy() 
+        
+        # --- DISPLAY ---
+        labels_step1 = ['A0 (Optimum)'] + [f"A{i+1} ({n})" for i, n in enumerate(alts)]
+        labels_step2 = ['A0'] + [f"A{i+1}" for i in range(len(alts))] 
+        labels_step3 = ['S0'] + [f"S{i+1}" for i in range(len(alts))] 
+
+        st.markdown('<div class="step-header">LANGKAH 1: Matriks Keputusan (A)</div>', unsafe_allow_html=True)
+        df_disp_1 = df_step1.copy()
+        df_disp_1.index = labels_step1 
+        st.dataframe(df_disp_1, use_container_width=True)
+
+        st.markdown('<div class="step-header">LANGKAH 2: Normalisasi (R)</div>', unsafe_allow_html=True)
+        df_disp_2 = df_step2.copy()
+        df_disp_2.index = labels_step2
+        st.dataframe(df_disp_2.style.format("{:.4f}"), use_container_width=True)
+
+        st.markdown('<div class="step-header">LANGKAH 3: Matriks Terbobot (S)</div>', unsafe_allow_html=True)
+        df_disp_3 = df_step3.copy()
+        df_disp_3.index = labels_step3 
+        st.dataframe(df_disp_3.style.format("{:.4f}"), use_container_width=True)
+
+        st.markdown('<div class="step-header">HASIL PERANGKINGAN</div>', unsafe_allow_html=True)
+        st.info(f"Nilai Optimalitas (S0) = **{S0:.4f}**")
+        
+        col_res, col_chart = st.columns([1.2, 1])
+        
+        with col_res:
+            st.write("Tabel Peringkat (Urut Skor Tertinggi):")
+            st.dataframe(
+                rank_df[['Kode', 'Alternatif', 'Nilai Si (Total)', 'Nilai Ki (Utilitas)']]
+                .style.format({'Nilai Si (Total)': '{:.4f}', 'Nilai Ki (Utilitas)': '{:.4f}'}),
+                use_container_width=True
+            )
+        
+        with col_chart:
+            st.write("Grafik Utilitas (Sesuai Urutan Input):")
+            c = alt.Chart(chart_df).mark_bar().encode(
+                x=alt.X('Alternatif', sort=None),
+                y='Nilai Ki (Utilitas)',
+                tooltip=['Alternatif', 'Nilai Ki (Utilitas)']
+            ).interactive()
+            st.altair_chart(c, use_container_width=True)
+        
+        st.success(f"🏆 Juara 1: **{best['Alternatif']}** (Kode Asal: **{best['Kode']}**)")
+
+        st.markdown("---")
+        pdf_bytes = create_dynamic_pdf(edited_df, bobot_dict, df_step1, df_step2, df_step3, rank_df, 
+                                       {"nama": best['Alternatif'], "kode": best['Kode']})
+        
+        st.download_button(
+            label="📄 Download Laporan Lengkap (PDF)",
+            data=pdf_bytes,
+            file_name="Laporan_ARAS_Final.pdf",
+            mime="application/pdf"
+        )
