@@ -5,7 +5,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="SPK ARAS - Final + Grafik", page_icon="📱", layout="wide")
+st.set_page_config(page_title="SPK ARAS - Final + Grafik Urut", page_icon="📱", layout="wide")
 
 # --- CSS TAMPILAN ---
 st.markdown("""
@@ -175,9 +175,10 @@ if st.button("🚀 Hitung & Tampilkan", type="primary"):
     S0 = Si[0]
     Ki = Si / S0
 
-    # 5. Final Ranking Preparation
+    # 5. Preparation Hasil
     kode_awal = ['A0'] + [f"A{i+1}" for i in range(len(alts))]
     
+    # DataFrame lengkap tanpa sort (urutan input)
     res = pd.DataFrame({
         'Kode': kode_awal,
         'Alternatif': ['OPTIMAL (A0)'] + list(alts),
@@ -185,18 +186,22 @@ if st.button("🚀 Hitung & Tampilkan", type="primary"):
         'Nilai Ki (Utilitas)': Ki
     })
     
+    # 1. Data untuk Tabel Ranking (Diurutkan berdasarkan skor tertinggi)
     rank_df = res.iloc[1:].copy().sort_values(by='Nilai Ki (Utilitas)', ascending=False).reset_index(drop=True)
     best = rank_df.iloc[0]
 
+    # 2. Data untuk Grafik (Diurutkan berdasarkan Input Awal / Tidak disortir)
+    chart_df = res.iloc[1:].copy() # Ambil mulai dari index 1 (A1 dst), biarkan urutannya
+    
     # --- DISPLAY OUTPUT ---
 
     # Labels
     labels_step1 = ['A0 (Optimum)']
     for i, name in enumerate(alts):
-        labels_step1.append(f"A{i+1} ({name})") # Label Nama
+        labels_step1.append(f"A{i+1} ({name})") 
 
-    labels_step2 = ['A0'] + [f"A{i+1}" for i in range(len(alts))] # Label Pendek
-    labels_step3 = ['S0'] + [f"S{i+1}" for i in range(len(alts))] # Label S
+    labels_step2 = ['A0'] + [f"A{i+1}" for i in range(len(alts))] 
+    labels_step3 = ['S0'] + [f"S{i+1}" for i in range(len(alts))] 
 
     # DISPLAY LANGKAH 1
     st.markdown('<div class="step-header">LANGKAH 1: Matriks Keputusan (A)</div>', unsafe_allow_html=True)
@@ -216,15 +221,14 @@ if st.button("🚀 Hitung & Tampilkan", type="primary"):
     df_disp_3.index = labels_step3 
     st.dataframe(df_disp_3.style.format("{:.4f}"), use_container_width=True)
 
-    # DISPLAY HASIL AKHIR (DENGAN GRAFIK)
+    # DISPLAY HASIL AKHIR (DENGAN GRAFIK URUT DATA AWAL)
     st.markdown('<div class="step-header">HASIL PERANGKINGAN</div>', unsafe_allow_html=True)
     st.info(f"Nilai Optimalitas (S0) = **{S0:.4f}**")
     
-    # Membagi layout: Kiri Tabel, Kanan Grafik
     col_res, col_chart = st.columns([1.2, 1])
     
     with col_res:
-        st.write("Tabel Peringkat:")
+        st.write("Tabel Peringkat (Urut Skor Tertinggi):")
         st.dataframe(
             rank_df[['Kode', 'Alternatif', 'Nilai Si (Total)', 'Nilai Ki (Utilitas)']]
             .style.format({'Nilai Si (Total)': '{:.4f}', 'Nilai Ki (Utilitas)': '{:.4f}'}),
@@ -232,9 +236,9 @@ if st.button("🚀 Hitung & Tampilkan", type="primary"):
         )
     
     with col_chart:
-        st.write("Grafik Utilitas (Ki):")
-        # Grafik batang sederhana
-        st.bar_chart(rank_df.set_index('Alternatif')['Nilai Ki (Utilitas)'])
+        st.write("Grafik Utilitas (Urut Data Input):")
+        # Menggunakan chart_df yang TIDAK DI-SORT (Urutan: Samsung -> Xiaomi -> Infinix -> Realme)
+        st.bar_chart(chart_df.set_index('Alternatif')['Nilai Ki (Utilitas)'])
     
     st.success(f"🏆 Juara 1: **{best['Alternatif']}** (Kode Asal: **{best['Kode']}**)")
 
