@@ -1,11 +1,12 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import altair as alt  # Library tambahan untuk grafik presisi
 from fpdf import FPDF
 from datetime import datetime
 
 # --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="SPK ARAS - Final + Grafik Urut", page_icon="📱", layout="wide")
+st.set_page_config(page_title="SPK ARAS - Final Fixed", page_icon="📱", layout="wide")
 
 # --- CSS TAMPILAN ---
 st.markdown("""
@@ -186,16 +187,15 @@ if st.button("🚀 Hitung & Tampilkan", type="primary"):
         'Nilai Ki (Utilitas)': Ki
     })
     
-    # 1. Data untuk Tabel Ranking (Diurutkan berdasarkan skor tertinggi)
+    # DATA A: Untuk Tabel Ranking (Diurutkan berdasarkan skor tertinggi)
     rank_df = res.iloc[1:].copy().sort_values(by='Nilai Ki (Utilitas)', ascending=False).reset_index(drop=True)
     best = rank_df.iloc[0]
 
-    # 2. Data untuk Grafik (Diurutkan berdasarkan Input Awal / Tidak disortir)
-    chart_df = res.iloc[1:].copy() # Ambil mulai dari index 1 (A1 dst), biarkan urutannya
+    # DATA B: Untuk Grafik (TIDAK DI-SORT, Murni urutan input)
+    chart_df = res.iloc[1:].copy() 
     
     # --- DISPLAY OUTPUT ---
 
-    # Labels
     labels_step1 = ['A0 (Optimum)']
     for i, name in enumerate(alts):
         labels_step1.append(f"A{i+1} ({name})") 
@@ -221,7 +221,7 @@ if st.button("🚀 Hitung & Tampilkan", type="primary"):
     df_disp_3.index = labels_step3 
     st.dataframe(df_disp_3.style.format("{:.4f}"), use_container_width=True)
 
-    # DISPLAY HASIL AKHIR (DENGAN GRAFIK URUT DATA AWAL)
+    # DISPLAY HASIL AKHIR (DENGAN GRAFIK YANG BENAR)
     st.markdown('<div class="step-header">HASIL PERANGKINGAN</div>', unsafe_allow_html=True)
     st.info(f"Nilai Optimalitas (S0) = **{S0:.4f}**")
     
@@ -236,9 +236,15 @@ if st.button("🚀 Hitung & Tampilkan", type="primary"):
         )
     
     with col_chart:
-        st.write("Grafik Utilitas (Urut Data Input):")
-        # Menggunakan chart_df yang TIDAK DI-SORT (Urutan: Samsung -> Xiaomi -> Infinix -> Realme)
-        st.bar_chart(chart_df.set_index('Alternatif')['Nilai Ki (Utilitas)'])
+        st.write("Grafik Utilitas (Sesuai Urutan Input):")
+        # FIX: Menggunakan ALTAIR untuk memaksa urutan agar tidak alphabet
+        c = alt.Chart(chart_df).mark_bar().encode(
+            x=alt.X('Alternatif', sort=None), # sort=None menjaga urutan A1, A2, A3, A4
+            y='Nilai Ki (Utilitas)',
+            tooltip=['Alternatif', 'Nilai Ki (Utilitas)']
+        ).interactive()
+        
+        st.altair_chart(c, use_container_width=True)
     
     st.success(f"🏆 Juara 1: **{best['Alternatif']}** (Kode Asal: **{best['Kode']}**)")
 
