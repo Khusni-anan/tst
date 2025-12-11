@@ -5,7 +5,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="SPK ARAS - Final", page_icon="📱", layout="wide")
+st.set_page_config(page_title="SPK ARAS - Final + Grafik", page_icon="📱", layout="wide")
 
 # --- CSS TAMPILAN ---
 st.markdown("""
@@ -78,14 +78,14 @@ def create_dynamic_pdf(data_input, bobot_dict, df_s1, df_s2, df_s3, df_rank, bes
     pdf.chapter_title("2. Langkah 1: Matriks Keputusan")
     df_p1 = df_s1.copy()
     if len(df_p1) == len(labels_A_names):
-        df_p1.insert(0, 'Alt', labels_A_names) # Pakai nama lengkap di langkah 1
+        df_p1.insert(0, 'Alt', labels_A_names) 
     pdf.simple_table(df_p1)
 
     # 3. Langkah 2
     pdf.chapter_title("3. Langkah 2: Normalisasi (R)")
     df_p2 = df_s2.copy()
     if len(df_p2) == len(labels_A_short):
-        df_p2.insert(0, 'Alt', labels_A_short) # Pakai kode pendek agar muat
+        df_p2.insert(0, 'Alt', labels_A_short) 
     pdf.simple_table(df_p2)
 
     # 4. Langkah 3
@@ -100,7 +100,7 @@ def create_dynamic_pdf(data_input, bobot_dict, df_s1, df_s2, df_s3, df_rank, bes
     pdf.chapter_title("5. Hasil Akhir & Perangkingan")
     df_rank_p = df_rank.copy()
     df_rank_p.insert(0, 'Rank', range(1, len(df_rank_p)+1))
-    # Tampilkan kolom Kode, Alternatif, Ki
+    
     pdf.simple_table(df_rank_p[['Rank', 'Kode', 'Alternatif', 'Nilai Ki (Utilitas)']], [15, 20, 60, 35])
     
     pdf.ln(5)
@@ -176,38 +176,32 @@ if st.button("🚀 Hitung & Tampilkan", type="primary"):
     Ki = Si / S0
 
     # 5. Final Ranking Preparation
-    # Buat list Kode Awal untuk tracking (Request: A berapa awalnya?)
     kode_awal = ['A0'] + [f"A{i+1}" for i in range(len(alts))]
     
     res = pd.DataFrame({
-        'Kode': kode_awal, # Kolom baru untuk Kode Awal
+        'Kode': kode_awal,
         'Alternatif': ['OPTIMAL (A0)'] + list(alts),
         'Nilai Si (Total)': Si,
         'Nilai Ki (Utilitas)': Ki
     })
     
-    # Filter A0 dan Sort
     rank_df = res.iloc[1:].copy().sort_values(by='Nilai Ki (Utilitas)', ascending=False).reset_index(drop=True)
     best = rank_df.iloc[0]
 
     # --- DISPLAY OUTPUT ---
 
-    # Generator Label untuk Step 1 (Request: Tetap ada nama smartphonenya)
+    # Labels
     labels_step1 = ['A0 (Optimum)']
     for i, name in enumerate(alts):
-        labels_step1.append(f"A{i+1} ({name})")
+        labels_step1.append(f"A{i+1} ({name})") # Label Nama
 
-    # Generator Label untuk Step 2 (Kode Pendek)
-    labels_step2 = ['A0'] + [f"A{i+1}" for i in range(len(alts))]
-    
-    # Generator Label untuk Step 3 (Kode S)
-    labels_step3 = ['S0'] + [f"S{i+1}" for i in range(len(alts))]
+    labels_step2 = ['A0'] + [f"A{i+1}" for i in range(len(alts))] # Label Pendek
+    labels_step3 = ['S0'] + [f"S{i+1}" for i in range(len(alts))] # Label S
 
     # DISPLAY LANGKAH 1
     st.markdown('<div class="step-header">LANGKAH 1: Matriks Keputusan (A)</div>', unsafe_allow_html=True)
-    st.caption("Label baris menampilkan Kode (A) beserta Nama Alternatifnya.")
     df_disp_1 = df_step1.copy()
-    df_disp_1.index = labels_step1 # Menggunakan label + nama
+    df_disp_1.index = labels_step1 
     st.dataframe(df_disp_1, use_container_width=True)
 
     # DISPLAY LANGKAH 2
@@ -222,16 +216,25 @@ if st.button("🚀 Hitung & Tampilkan", type="primary"):
     df_disp_3.index = labels_step3 
     st.dataframe(df_disp_3.style.format("{:.4f}"), use_container_width=True)
 
-    # DISPLAY HASIL AKHIR
+    # DISPLAY HASIL AKHIR (DENGAN GRAFIK)
     st.markdown('<div class="step-header">HASIL PERANGKINGAN</div>', unsafe_allow_html=True)
     st.info(f"Nilai Optimalitas (S0) = **{S0:.4f}**")
     
-    # Tampilkan tabel ranking dengan kolom 'Kode' (Request: Bisa tau A berapa)
-    st.dataframe(
-        rank_df[['Kode', 'Alternatif', 'Nilai Si (Total)', 'Nilai Ki (Utilitas)']]
-        .style.format({'Nilai Si (Total)': '{:.4f}', 'Nilai Ki (Utilitas)': '{:.4f}'}),
-        use_container_width=True
-    )
+    # Membagi layout: Kiri Tabel, Kanan Grafik
+    col_res, col_chart = st.columns([1.2, 1])
+    
+    with col_res:
+        st.write("Tabel Peringkat:")
+        st.dataframe(
+            rank_df[['Kode', 'Alternatif', 'Nilai Si (Total)', 'Nilai Ki (Utilitas)']]
+            .style.format({'Nilai Si (Total)': '{:.4f}', 'Nilai Ki (Utilitas)': '{:.4f}'}),
+            use_container_width=True
+        )
+    
+    with col_chart:
+        st.write("Grafik Utilitas (Ki):")
+        # Grafik batang sederhana
+        st.bar_chart(rank_df.set_index('Alternatif')['Nilai Ki (Utilitas)'])
     
     st.success(f"🏆 Juara 1: **{best['Alternatif']}** (Kode Asal: **{best['Kode']}**)")
 
