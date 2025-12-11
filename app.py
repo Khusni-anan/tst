@@ -134,7 +134,7 @@ st.sidebar.write(f"**Total Bobot Saat Ini:** {total_bobot}")
 is_overload = False
 if total_bobot > 1.0:
     st.sidebar.error(f"❌ ERROR: Total bobot {total_bobot} melebihi 1.0!")
-    st.sidebar.warning("Harap kurangi nilai salah satu bobot.")
+    st.sidebar.warning("Harap kurangi nilai bobot.")
     is_overload = True
 elif total_bobot < 1.0:
     st.sidebar.warning(f"⚠️ PERINGATAN: Total bobot {total_bobot} kurang dari 1.0. (Program tetap jalan, tapi disarankan pas 1.0)")
@@ -258,7 +258,7 @@ else:
             ).interactive()
             st.altair_chart(c, use_container_width=True)
         
-        st.success(f"🏆 Juara 1: **{best['Alternatif']}** (Kode Asal: **{best['Kode']}**)")
+        st.success(f"🏆 Juara 1: **{best['Alternatif']}** ")
 
         st.markdown("---")
         pdf_bytes = create_dynamic_pdf(edited_df, bobot_dict, df_step1, df_step2, df_step3, rank_df, 
