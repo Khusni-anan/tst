@@ -109,7 +109,7 @@ def create_dynamic_pdf(data_input, bobot_dict, df_s1, df_s2, df_s3, df_rank, bes
     
     pdf.ln(5)
     pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 10, f"Rekomendasi Terbaik: {best_hp['nama']} (Kode: {best_hp['kode']})", 0, 1)
+    pdf.cell(0, 10, f"Rekomendasi Terbaik: {best_hp['nama']} )", 0, 1)
 
     return pdf.output(dest='S').encode('latin-1')
 
