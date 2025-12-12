@@ -208,7 +208,8 @@ if total_bobot > 1.0:
     st.sidebar.error("❌ Total > 1.0 (Harap kurangi)")
     is_overload = True
 elif total_bobot < 1.0:
-    st.sidebar.warning("⚠️ Total < 1.0")
+    st.sidebar.error("❌ Total < 1.0 (Harap Tambah)")
+    is_overload = True
 else:
     st.sidebar.success("✅ Total Pas 1.0")
 
