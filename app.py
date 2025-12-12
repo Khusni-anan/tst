@@ -129,7 +129,7 @@ def create_dynamic_pdf(data_input, bobot_dict, df_s1, df_s2, df_s3, df_rank, bes
     
     pdf.ln(5)
     pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 10, f"Rekomendasi Terbaik: {best_hp['nama']} (Kode: {best_hp['kode']})", 0, 1)
+    pdf.cell(0, 10, f"Rekomendasi Terbaik: {best_hp['nama']} ", 0, 1)
 
     return pdf.output(dest='S').encode('latin-1')
 
@@ -214,7 +214,7 @@ else:
 
 
 # --- HALAMAN UTAMA ---
-st.title("📱 SPK Smartphone - User Customizable")
+st.title("📱 SPK Smartphone")
 st.write("Gunakan menu **'Kelola Kriteria'** di sidebar untuk menambah/menghapus kolom kriteria.")
 
 # Tampilkan Tabel Editable dari Session State
@@ -339,7 +339,7 @@ else:
             )
         
         with col_chart:
-            st.write("Grafik Utilitas (Sesuai Urutan Input):")
+            st.write("Grafik Utilitas:")
             c = alt.Chart(chart_df).mark_bar().encode(
                 x=alt.X('Alternatif', sort=None),
                 y='Nilai Ki (Utilitas)',
@@ -347,7 +347,7 @@ else:
             ).interactive()
             st.altair_chart(c, use_container_width=True)
         
-        st.success(f"🏆 Juara 1: **{best['Alternatif']}** (Kode Asal: **{best['Kode']}**)")
+        st.success(f"🏆 Juara 1: **{best['Alternatif']}** ")
 
         st.markdown("---")
         pdf_bytes = create_dynamic_pdf(edited_df, current_weights, df_step1, df_step2, df_step3, rank_df, 
